@@ -4,8 +4,12 @@ from scanner import scan_python_code
 from utils.code_highlighter import show_code_snippet_with_arrow
 from utils.report import generate_html_report
 from utils.vuln_patterns import VULN_KNOWLEDGE
-
 import time
+import requests
+import io
+
+SAMPLE_URL = "https://raw.githubusercontent.com/YOUR_GITHUB_USER/YOUR_REPO/main/vulnerable_test_script.py"
+SAMPLE_FILENAME = "vulnerable_test_script.py"
 
 st.markdown("""
 <style>
@@ -33,7 +37,6 @@ div.stDownloadButton > button { background: #22232b; color: #fafafa; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Sidebar Navigation ---
 with st.sidebar:
     st.title("🐍 PyGuard")
     st.markdown("**Secure Python Coding Scanner**")
@@ -48,11 +51,27 @@ with st.sidebar:
 
 st.title("🔒 Python Secure Coding Vulnerability Scanner")
 
+# --- Load sample file button ---
+sample_bytes = None
+if st.button("Load Sample File for Demo"):
+    try:
+        resp = requests.get(SAMPLE_URL)
+        resp.raise_for_status()
+        sample_bytes = io.BytesIO(resp.content)
+        sample_bytes.name = SAMPLE_FILENAME
+        st.session_state['demo_file'] = sample_bytes
+        st.success("Sample file loaded! Click 'Scan for Vulnerabilities' to analyze.")
+    except Exception as e:
+        st.error(f"Could not fetch sample file: {e}")
+
+# --- Main file uploader (auto-uses sample file if loaded) ---
 uploaded_file = st.file_uploader(
     "Upload a Python file (.py) or zip (.zip) of Python files", 
     type=["py", "zip"], 
     accept_multiple_files=False
 )
+if not uploaded_file and 'demo_file' in st.session_state:
+    uploaded_file = st.session_state['demo_file']
 
 if uploaded_file:
     code_files = scan_python_code.load_code_files(uploaded_file)
@@ -107,15 +126,6 @@ if uploaded_file:
                 df_issues = pd.DataFrame(all_flat_issues)
                 df_issues = df_issues[["filename", "line", "severity", "type", "message", "remediation"]]
                 st.dataframe(df_issues, use_container_width=True)
-                # Click-to-show context
-                idx = st.number_input("Enter table row number to see code context:", min_value=0, max_value=len(df_issues)-1 if len(df_issues) else 0, step=1, value=0)
-                if len(df_issues) > 0:
-                    row = df_issues.iloc[int(idx)]
-                    code = code_files[row["filename"]]
-                    st.markdown(f"**{row['type']} at {row['filename']}:{row['line']}**")
-                    st.info(VULN_KNOWLEDGE.get(row['type'], ""))
-                    snippet = show_code_snippet_with_arrow(code, int(row['line']))
-                    st.code(snippet, language="python")
             else:
                 st.info("No issues found.")
 
@@ -154,7 +164,7 @@ if uploaded_file:
         # --- Download HTML report button ---
         report_html = generate_html_report(all_issues, code_files)
         st.download_button(
-            label="Download Beautiful HTML Report",
+            label="Download HTML Report",
             data=report_html,
             file_name="pyguard_report.html",
             mime="text/html"
@@ -162,4 +172,4 @@ if uploaded_file:
 
     st.button("Scan Again", on_click=st.rerun)
 else:
-    st.markdown("⬆️ *Upload a `.py` file or a `.zip` of Python files to get started.*")
+    st.markdown("⬆️ *Upload a `.py` file or a `.zip` of Python files to get started, or load a sample file for demonstration.*")
