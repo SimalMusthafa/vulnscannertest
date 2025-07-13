@@ -5,10 +5,8 @@ from utils.code_highlighter import show_code_snippet_with_arrow
 from utils.report import generate_html_report
 from utils.vuln_patterns import VULN_KNOWLEDGE
 import time
-import requests
 import io
 
-SAMPLE_URL = "https://raw.githubusercontent.com/YOUR_GITHUB_USER/YOUR_REPO/main/vulnerable_test_script.py"
 SAMPLE_FILENAME = "vulnerable_test_script.py"
 
 st.markdown("""
@@ -52,17 +50,15 @@ with st.sidebar:
 st.title("🔒 Python Secure Coding Vulnerability Scanner")
 
 # --- Load sample file button ---
-sample_bytes = None
 if st.button("Load Sample File for Demo"):
     try:
-        resp = requests.get(SAMPLE_URL)
-        resp.raise_for_status()
-        sample_bytes = io.BytesIO(resp.content)
-        sample_bytes.name = SAMPLE_FILENAME
-        st.session_state['demo_file'] = sample_bytes
-        st.success("Sample file loaded! Click 'Scan for Vulnerabilities' to analyze.")
+        with open(SAMPLE_FILENAME, "rb") as f:
+            file_bytes = io.BytesIO(f.read())
+            file_bytes.name = SAMPLE_FILENAME
+            st.session_state['demo_file'] = file_bytes
+            st.success("Sample file loaded! Click 'Scan for Vulnerabilities' to analyze.")
     except Exception as e:
-        st.error(f"Could not fetch sample file: {e}")
+        st.error(f"Could not load sample file: {e}")
 
 # --- Main file uploader (auto-uses sample file if loaded) ---
 uploaded_file = st.file_uploader(
