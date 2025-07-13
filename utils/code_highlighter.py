@@ -13,6 +13,7 @@ def highlight_code(code, highlight_line=None):
     elif isinstance(highlight_line, int):
         highlight_line = [highlight_line]
     formatter = HtmlFormatter(linenos=True, hl_lines=highlight_line, full=False, cssclass="highlight")
-    highlighted = highlight(code, PythonLexer(), formatter)
     style = f"<style>{formatter.get_style_defs('.highlight')}</style>"
+    highlighted = highlight(code, PythonLexer(), formatter)
+    # Don't forget to include the style in the HTML
     return style + highlighted
