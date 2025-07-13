@@ -60,3 +60,23 @@ PYTHON_VULN_PATTERNS = [
     },
     # Add more custom rules as desired!
 ]
+
+VULN_KNOWLEDGE = {
+    "Hardcoded Credential": 
+        "Storing secrets or passwords in code is highly dangerous. If leaked or committed to version control, anyone can gain unauthorized access. Use environment variables or secret management services instead. [Learn More](https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html)",
+    "SQL Injection":
+        "SQL injection is a code injection technique that might destroy your database. Always use parameterized queries. [OWASP Guide](https://owasp.org/www-community/attacks/SQL_Injection)",
+    "Command Injection":
+        "Command injection allows attackers to run arbitrary commands on your server. Never pass user input to system shell commands. [OWASP Guide](https://owasp.org/www-community/attacks/Command_Injection)",
+    "Insecure Deserialization":
+        "Deserializing data from untrusted sources can result in arbitrary code execution. Use safe serialization like JSON, and never unpickle user input. [OWASP Guide](https://owasp.org/www-community/vulnerabilities/Deserialization_of_untrusted_data)",
+    "Use of eval":
+        "Eval executes arbitrary code. User input passed to eval can lead to full code execution by attackers. Avoid at all costs. [Python Security Docs](https://realpython.com/python-eval-function/#security-risks)",
+    "Weak Cryptography":
+        "MD5 and SHA1 are broken and can be attacked. Use SHA256, SHA512, bcrypt, or Argon2 for security. [NIST Guidelines](https://csrc.nist.gov/projects/hash-functions)",
+    "Insecure Random":
+        "The random module is not cryptographically secure. Use the 'secrets' module for tokens or passwords. [Python docs](https://docs.python.org/3/library/secrets.html)",
+    "Wildcard Import":
+        "Wildcard imports make code unclear and can cause namespace conflicts. Import only what you need.",
+    # Add more as you add patterns
+}
