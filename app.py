@@ -1,25 +1,14 @@
 import streamlit as st
 import pandas as pd
 from scanner import scan_python_code
-from utils.code_highlighter import highlight_code
+from utils.code_highlighter import show_code_snippet_with_arrow
 from utils.report import generate_html_report
 
-# -------- Custom CSS for modern look --------
+# --- Modern CSS for cards and summary ---
 st.markdown("""
 <style>
-.stApp { background-color: #17191c; }
+.stApp { background-color: #181a1b; }
 h1, h2, h3, h4, h5 { color: #fafafa; }
-.code-block {
-    background: #181c22 !important;
-    color: #fafafa !important;
-    border-radius: 12px;
-    font-size: 15px;
-    font-family: 'Fira Mono', 'Consolas', 'Monaco', monospace;
-    padding: 16px 8px !important;
-    margin: 14px 0 30px 0;
-    overflow-x: auto;
-    max-height: 450px;
-}
 .issue-card-high {
     background: #3b1212;
     border-left: 5px solid #ff5252;
@@ -32,11 +21,7 @@ h1, h2, h3, h4, h5 { color: #fafafa; }
     background: #163a22;
     border-left: 5px solid #50fa7b;
 }
-.issue-type {
-    font-weight: bold;
-    font-size: 1.1em;
-    color: #f9f9f9;
-}
+.issue-type { font-weight: bold; font-size: 1.1em; color: #f9f9f9; }
 .severity-high { color: #ff5252; font-weight: bold; }
 .severity-medium { color: #ffe156; font-weight: bold; }
 .severity-low { color: #50fa7b; font-weight: bold; }
@@ -45,13 +30,13 @@ div.stDownloadButton > button { background: #22232b; color: #fafafa; }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- Sidebar ----------
+# --- Sidebar ---
 with st.sidebar:
     st.title("🐍 PyGuard")
     st.markdown("**Secure Python Coding Scanner**")
     st.info("Upload Python file(s) to scan for OWASP Top 10 security bugs. Powered by Bandit and custom rules.")
     st.markdown("---")
-    st.markdown("v1.1 | [GitHub](#)")
+    st.markdown("v1.2 | [GitHub](#)")
 
 st.title("🔒 Python Secure Coding Vulnerability Scanner")
 
@@ -83,7 +68,7 @@ if uploaded_file:
         else:
             st.info("No vulnerabilities detected!")
 
-        # --- Detailed findings, with cards and code blocks ---
+        # --- Detailed findings with cards and code context ---
         st.subheader("🔎 Findings Summary")
         for fname, issues in all_issues.items():
             if not issues:
@@ -102,8 +87,8 @@ if uploaded_file:
                     <b>Remediation:</b> <span style="opacity:0.90;">{issue['remediation']}</span>
                 </div>
                 """, unsafe_allow_html=True)
-                code_html = highlight_code(code, highlight_line=issue['line'])
-                st.markdown(f'<div class="code-block">{code_html}</div>', unsafe_allow_html=True)
+                snippet = show_code_snippet_with_arrow(code, issue['line'])
+                st.code(snippet, language="python")
 
         # --- Download report button ---
         report_html = generate_html_report(all_issues, code_files)
