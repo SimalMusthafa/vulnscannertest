@@ -40,7 +40,7 @@ with st.sidebar:
     st.markdown("**Secure Python Coding Scanner**")
     st.info("Upload Python file(s) to scan for OWASP Top 10 security bugs. Powered by Bandit and custom rules.")
     st.markdown("---")
-    st.markdown("v1.4 | [GitHub](#)")
+    st.markdown("v1.0")
     st.markdown("---")
     if 'file_list' in st.session_state:
         st.markdown("#### Files in Scan:")
