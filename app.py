@@ -30,13 +30,18 @@ div.stDownloadButton > button { background: #22232b; color: #fafafa; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Sidebar ---
+# --- Sidebar with navigation ---
 with st.sidebar:
     st.title("🐍 PyGuard")
     st.markdown("**Secure Python Coding Scanner**")
     st.info("Upload Python file(s) to scan for OWASP Top 10 security bugs. Powered by Bandit and custom rules.")
     st.markdown("---")
-    st.markdown("v1.2 | [GitHub](#)")
+    st.markdown("v1.3 | [GitHub](#)")
+    st.markdown("---")
+    if 'file_list' in st.session_state:
+        st.markdown("#### Files in Scan:")
+        for idx, fname in enumerate(st.session_state['file_list']):
+            st.markdown(f"- [{fname}](#{fname.replace('.','-')})")
 
 st.title("🔒 Python Secure Coding Vulnerability Scanner")
 
@@ -48,6 +53,7 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file:
     code_files = scan_python_code.load_code_files(uploaded_file)
+    st.session_state['file_list'] = list(code_files.keys())
     st.subheader("📄 Uploaded Files")
     for fname, code in code_files.items():
         with st.expander(fname):
@@ -59,27 +65,40 @@ if uploaded_file:
 
         st.success("Scan complete!")
 
-        # --- Severity summary table ---
+        # --- Severity summary table with emojis ---
         all_flat_issues = [i for issues in all_issues.values() for i in issues]
+        sev_emoji = {'HIGH': '🚨 HIGH', 'MEDIUM': '⚠️ MEDIUM', 'LOW': '🟢 LOW'}
         if all_flat_issues:
-            summary = pd.Series([i['severity'].capitalize() for i in all_flat_issues]).value_counts()
+            summary = pd.Series([i['severity'].upper() for i in all_flat_issues]).value_counts()
+            summary_display = summary.rename(lambda x: sev_emoji.get(x, x)).rename("Count").to_frame()
             st.markdown("### 🗂️ Severity Summary")
-            st.dataframe(summary.rename("Count").to_frame(), use_container_width=True)
+            st.dataframe(summary_display, use_container_width=True)
         else:
             st.info("No vulnerabilities detected!")
 
-        # --- Detailed findings with cards and code context ---
+        # --- Toggle filters for severity levels ---
+        st.markdown("### Filter Findings")
+        show_high = st.checkbox("Show HIGH severity", True)
+        show_med = st.checkbox("Show MEDIUM severity", True)
+        show_low = st.checkbox("Show LOW severity", False)
+        severity_filter = set()
+        if show_high: severity_filter.add('HIGH')
+        if show_med: severity_filter.add('MEDIUM')
+        if show_low: severity_filter.add('LOW')
+
         st.subheader("🔎 Findings Summary")
         for fname, issues in all_issues.items():
-            if not issues:
+            display_issues = [i for i in issues if i['severity'].upper() in severity_filter]
+            if not display_issues:
                 continue
-            st.markdown(f"<div style='margin-bottom:10px;'><span style='background:#222; color:#50fa7b; padding:4px 10px; border-radius:6px; font-size:1.0em;'>{fname}</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div id='{fname.replace('.','-')}' style='margin-bottom:10px;'><span style='background:#222; color:#50fa7b; padding:4px 10px; border-radius:6px; font-size:1.0em;'>{fname}</span></div>", unsafe_allow_html=True)
             code = code_files[fname]
-            for issue in issues:
+            for issue in display_issues:
                 sev = issue['severity'].lower()
+                sev_icon = {'high':'🚨', 'medium':'⚠️', 'low':'🟢'}.get(sev, '')
                 st.markdown(f"""
                 <div class="issue-card-{sev}" style="padding: 14px 18px; border-radius: 10px; margin-bottom: 16px;">
-                    <span class="issue-type">{issue['type']}</span>
+                    <span class="issue-type">{sev_icon} {issue['type']}</span>
                     <span class="severity-{sev}">(Severity: {issue['severity'].capitalize()})</span>
                     <br>
                     <span style="opacity:0.92;"><b>Line:</b> {issue['line']} — {issue['message']}</span>
@@ -90,10 +109,10 @@ if uploaded_file:
                 snippet = show_code_snippet_with_arrow(code, issue['line'])
                 st.code(snippet, language="python")
 
-        # --- Download report button ---
+        # --- Download HTML report button ---
         report_html = generate_html_report(all_issues, code_files)
         st.download_button(
-            label="Download HTML Report",
+            label="Download Beautiful HTML Report",
             data=report_html,
             file_name="pyguard_report.html",
             mime="text/html"
