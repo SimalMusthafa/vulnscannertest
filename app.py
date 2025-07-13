@@ -1,52 +1,71 @@
 import streamlit as st
-from utils import *
+from scanner import scan_python_code
+from utils.code_highlighter import highlight_code
+from utils.report import generate_html_report
 
-def main():
-    st.title("Secure Coding Vulnerability Scanner")
+st.set_page_config(
+    page_title="PyGuard: Python Security Scanner",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-    # Sidebar for navigation
-    st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Home", "Scanner", "About"])
+# Sidebar branding and info
+with st.sidebar:
+    st.title("🐍 PyGuard")
+    st.markdown("**Secure Python Coding Scanner**")
+    st.markdown("---")
+    st.info("Upload your Python file(s) below to scan for security issues. Powered by Bandit and custom rules.")
+    st.markdown("v1.0 | [GitHub](#)")
 
-    if page == "Home":
-        show_home_page()
-    elif page == "Scanner":
-        show_scanner_page()
-    elif page == "About":
-        show_about_page()
+# Main interface
+st.title("🔒 Python Secure Coding Vulnerability Scanner")
 
-def show_home_page():
-    st.header("Welcome to the Vulnerability Scanner")
-    st.write("""
-        This tool helps you analyze your source code for potential security vulnerabilities.
-        Navigate to the 'Scanner' page to upload your code and see the analysis.
-    """)
+uploaded_file = st.file_uploader(
+    "Upload a Python file (.py) or zip (.zip) of Python files", 
+    type=["py", "zip"], 
+    accept_multiple_files=False
+)
 
-def show_scanner_page():
-    st.header("Code Scanner")
-    language = st.selectbox("Select Language", ["Python", "JavaScript"])
-    uploaded_file = st.file_uploader("Upload a file")
+if uploaded_file:
+    code_files = scan_python_code.load_code_files(uploaded_file)
+    st.subheader("📄 Uploaded Files")
+    for fname, code in code_files.items():
+        with st.expander(fname):
+            st.code(code, language="python")
 
-    if uploaded_file is not None:
-        code = uploaded_file.read().decode("utf-8")
-        st.code(code, language=language.lower())
+    if st.button("Scan for Vulnerabilities"):
+        with st.spinner("Analyzing your code for vulnerabilities..."):
+            all_issues = scan_python_code.scan_multiple_files(code_files)
 
-        if st.button("Analyze"):
-            if language == "Python":
-                from python_scanner import scan_python
-                vulnerabilities = scan_python(code)
-            elif language == "JavaScript":
-                from javascript_scanner import scan_javascript
-                vulnerabilities = scan_javascript(code)
+        st.success("Scan complete!")
+        st.subheader("🔎 Findings Summary")
+        if not all_issues:
+            st.success("No vulnerabilities detected in your code!")
+        else:
+            for fname, issues in all_issues.items():
+                st.markdown(f"#### `{fname}`")
+                for issue in issues:
+                    color = {"LOW":"#e2f7e2", "MEDIUM":"#fff3cd", "HIGH":"#f8d7da"}.get(issue['severity'], "#f0f0f0")
+                    st.markdown(
+                        f"""
+                        <div style="background:{color};padding:8px;border-radius:10px;margin-bottom:6px;">
+                        <b>{issue['type']}</b> (line {issue['line']})<br>
+                        <span style="font-size:95%;">{issue['message']}</span>
+                        <br><b>Remediation:</b> {issue['remediation']}
+                        </div>
+                        """, unsafe_allow_html=True)
+                    st.markdown(highlight_code(code_files[fname], issue['line']), unsafe_allow_html=True)
 
-            display_vulnerabilities(vulnerabilities)
+        # Downloadable report
+        report_html = generate_html_report(all_issues, code_files)
+        st.download_button(
+            label="Download HTML Report",
+            data=report_html,
+            file_name="pyguard_report.html",
+            mime="text/html"
+        )
 
-def show_about_page():
-    st.header("About This Tool")
-    st.write("""
-        This vulnerability scanner is designed to help developers write more secure code.
-        It uses static analysis to find common security issues based on the OWASP Top 10.
-    """)
+    st.button("Scan Again", on_click=lambda: st.experimental_rerun())
+else:
+    st.markdown("⬆️ *Upload a `.py` file or a `.zip` of Python files to get started.*")
 
-if __name__ == "__main__":
-    main()
