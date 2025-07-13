@@ -3,8 +3,10 @@ import pandas as pd
 from scanner import scan_python_code
 from utils.code_highlighter import show_code_snippet_with_arrow
 from utils.report import generate_html_report
+from utils.vuln_patterns import VULN_KNOWLEDGE
 
-# --- Modern CSS for cards and summary ---
+import time
+
 st.markdown("""
 <style>
 .stApp { background-color: #181a1b; }
@@ -27,16 +29,17 @@ h1, h2, h3, h4, h5 { color: #fafafa; }
 .severity-low { color: #50fa7b; font-weight: bold; }
 hr { border-color: #2a2e32; }
 div.stDownloadButton > button { background: #22232b; color: #fafafa; }
+.code-context-pop { font-size:0.94em; color:#bbbbbb; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Sidebar with navigation ---
+# --- Sidebar Navigation ---
 with st.sidebar:
     st.title("🐍 PyGuard")
     st.markdown("**Secure Python Coding Scanner**")
     st.info("Upload Python file(s) to scan for OWASP Top 10 security bugs. Powered by Bandit and custom rules.")
     st.markdown("---")
-    st.markdown("v1.3 | [GitHub](#)")
+    st.markdown("v1.4 | [GitHub](#)")
     st.markdown("---")
     if 'file_list' in st.session_state:
         st.markdown("#### Files in Scan:")
@@ -60,54 +63,93 @@ if uploaded_file:
             st.code(code, language="python")
 
     if st.button("Scan for Vulnerabilities"):
+        start = time.time()
         with st.spinner("Analyzing your code for vulnerabilities..."):
             all_issues = scan_python_code.scan_multiple_files(code_files)
+        elapsed = time.time() - start
 
         st.success("Scan complete!")
 
-        # --- Severity summary table with emojis ---
-        all_flat_issues = [i for issues in all_issues.values() for i in issues]
+        all_flat_issues = [i | {'filename': fname} for fname, issues in all_issues.items() for i in issues]
         sev_emoji = {'HIGH': '🚨 HIGH', 'MEDIUM': '⚠️ MEDIUM', 'LOW': '🟢 LOW'}
-        if all_flat_issues:
-            summary = pd.Series([i['severity'].upper() for i in all_flat_issues]).value_counts()
-            summary_display = summary.rename(lambda x: sev_emoji.get(x, x)).rename("Count").to_frame()
-            st.markdown("### 🗂️ Severity Summary")
-            st.dataframe(summary_display, use_container_width=True)
+
+        total_files = len(code_files)
+        total_issues = len(all_flat_issues)
+        total_lines = sum(len(c.splitlines()) for c in code_files.values())
+        num_high = sum(1 for i in all_flat_issues if i['severity'].upper() == "HIGH")
+
+        st.markdown("## 📊 Scan Overview")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Files Scanned", total_files)
+        col2.metric("Total Issues", total_issues)
+        col3.metric("Lines of Code", total_lines)
+        col4.metric("Time (sec)", f"{elapsed:.2f}")
+
+        if num_high > 0:
+            st.error(f"🚨 High risk! {num_high} HIGH severity issues found.")
+        elif total_issues > 0:
+            st.warning("⚠️ Medium/Low severity issues found.")
         else:
-            st.info("No vulnerabilities detected!")
+            st.success("✅ No vulnerabilities detected!")
 
-        # --- Toggle filters for severity levels ---
-        st.markdown("### Filter Findings")
-        show_high = st.checkbox("Show HIGH severity", True)
-        show_med = st.checkbox("Show MEDIUM severity", True)
-        show_low = st.checkbox("Show LOW severity", False)
-        severity_filter = set()
-        if show_high: severity_filter.add('HIGH')
-        if show_med: severity_filter.add('MEDIUM')
-        if show_low: severity_filter.add('LOW')
+        st.markdown("### 🗂️ Severity Bar Chart")
+        if all_flat_issues:
+            sev_df = pd.Series([i['severity'].capitalize() for i in all_flat_issues]).value_counts()
+            st.bar_chart(sev_df)
+        else:
+            st.info("No findings to display.")
 
-        st.subheader("🔎 Findings Summary")
-        for fname, issues in all_issues.items():
-            display_issues = [i for i in issues if i['severity'].upper() in severity_filter]
-            if not display_issues:
-                continue
-            st.markdown(f"<div id='{fname.replace('.','-')}' style='margin-bottom:10px;'><span style='background:#222; color:#50fa7b; padding:4px 10px; border-radius:6px; font-size:1.0em;'>{fname}</span></div>", unsafe_allow_html=True)
-            code = code_files[fname]
-            for issue in display_issues:
-                sev = issue['severity'].lower()
-                sev_icon = {'high':'🚨', 'medium':'⚠️', 'low':'🟢'}.get(sev, '')
-                st.markdown(f"""
-                <div class="issue-card-{sev}" style="padding: 14px 18px; border-radius: 10px; margin-bottom: 16px;">
-                    <span class="issue-type">{sev_icon} {issue['type']}</span>
-                    <span class="severity-{sev}">(Severity: {issue['severity'].capitalize()})</span>
-                    <br>
-                    <span style="opacity:0.92;"><b>Line:</b> {issue['line']} — {issue['message']}</span>
-                    <br>
-                    <b>Remediation:</b> <span style="opacity:0.90;">{issue['remediation']}</span>
-                </div>
-                """, unsafe_allow_html=True)
-                snippet = show_code_snippet_with_arrow(code, issue['line'])
-                st.code(snippet, language="python")
+        # --- Tabs for results ---
+        tabs = st.tabs(["📋 All Issues Table", "📝 By File", "🧑‍💻 Full Code"])
+        with tabs[0]:
+            st.markdown("#### Searchable Table of All Issues")
+            if all_flat_issues:
+                df_issues = pd.DataFrame(all_flat_issues)
+                df_issues = df_issues[["filename", "line", "severity", "type", "message", "remediation"]]
+                st.dataframe(df_issues, use_container_width=True)
+                # Click-to-show context
+                idx = st.number_input("Enter table row number to see code context:", min_value=0, max_value=len(df_issues)-1 if len(df_issues) else 0, step=1, value=0)
+                if len(df_issues) > 0:
+                    row = df_issues.iloc[int(idx)]
+                    code = code_files[row["filename"]]
+                    st.markdown(f"**{row['type']} at {row['filename']}:{row['line']}**")
+                    st.info(VULN_KNOWLEDGE.get(row['type'], ""))
+                    snippet = show_code_snippet_with_arrow(code, int(row['line']))
+                    st.code(snippet, language="python")
+            else:
+                st.info("No issues found.")
+
+        with tabs[1]:
+            st.markdown("#### Grouped by File")
+            for fname, issues in all_issues.items():
+                if not issues:
+                    continue
+                st.markdown(f"<div id='{fname.replace('.','-')}' style='margin-bottom:10px;'><span style='background:#222; color:#50fa7b; padding:4px 10px; border-radius:6px; font-size:1.0em;'>{fname}</span></div>", unsafe_allow_html=True)
+                code = code_files[fname]
+                for issue in issues:
+                    sev = issue['severity'].lower()
+                    sev_icon = {'high':'🚨', 'medium':'⚠️', 'low':'🟢'}.get(sev, '')
+                    st.markdown(f"""
+                    <div class="issue-card-{sev}" style="padding: 14px 18px; border-radius: 10px; margin-bottom: 16px;">
+                        <span class="issue-type">{sev_icon} {issue['type']}</span>
+                        <span class="severity-{sev}">(Severity: {issue['severity'].capitalize()})</span>
+                        <br>
+                        <span style="opacity:0.92;"><b>Line:</b> {issue['line']} — {issue['message']}</span>
+                        <br>
+                        <b>Remediation:</b> <span style="opacity:0.90;">{issue['remediation']}</span>
+                        <span style="float:right">
+                            <a href="#" title="{VULN_KNOWLEDGE.get(issue['type'], 'No details.')}" style="color:#ffe156;font-size:1.2em;text-decoration:none;">🛈</a>
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    snippet = show_code_snippet_with_arrow(code, issue['line'])
+                    st.code(snippet, language="python")
+
+        with tabs[2]:
+            st.markdown("#### Full Source Code (all files)")
+            for fname, code in code_files.items():
+                st.markdown(f"<b>{fname}</b>", unsafe_allow_html=True)
+                st.code(code, language="python")
 
         # --- Download HTML report button ---
         report_html = generate_html_report(all_issues, code_files)
@@ -118,6 +160,6 @@ if uploaded_file:
             mime="text/html"
         )
 
-    st.button("Scan Again", on_click=lambda: st.experimental_rerun())
+    st.button("Scan Again", on_click=st.rerun)
 else:
     st.markdown("⬆️ *Upload a `.py` file or a `.zip` of Python files to get started.*")
