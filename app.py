@@ -7,7 +7,7 @@ from utils.vuln_patterns import VULN_KNOWLEDGE
 import time
 import io
 
-SAMPLE_FILENAME = "vulnerable_test_code.py"
+SAMPLE_FILENAME = "vulnerable_test_script.py"
 
 st.markdown("""
 <style>
@@ -49,13 +49,13 @@ with st.sidebar:
 
 st.title("🔒 Python Secure Coding Vulnerability Scanner")
 
-# --- Load sample file button ---
+# --- Load sample file button (store only bytes and name in session state) ---
 if st.button("Load Sample File for Demo"):
     try:
         with open(SAMPLE_FILENAME, "rb") as f:
-            file_bytes = io.BytesIO(f.read())
-            file_bytes.name = SAMPLE_FILENAME
-            st.session_state['demo_file'] = file_bytes
+            sample_bytes = f.read()
+            st.session_state['demo_file_bytes'] = sample_bytes
+            st.session_state['demo_file_name'] = SAMPLE_FILENAME
             st.success("Sample file loaded! Click 'Scan for Vulnerabilities' to analyze.")
     except Exception as e:
         st.error(f"Could not load sample file: {e}")
@@ -66,8 +66,11 @@ uploaded_file = st.file_uploader(
     type=["py", "zip"], 
     accept_multiple_files=False
 )
-if not uploaded_file and 'demo_file' in st.session_state:
-    uploaded_file = st.session_state['demo_file']
+if not uploaded_file and 'demo_file_bytes' in st.session_state:
+    file_bytes = st.session_state['demo_file_bytes']
+    file_name = st.session_state['demo_file_name']
+    uploaded_file = io.BytesIO(file_bytes)
+    uploaded_file.name = file_name
 
 if uploaded_file:
     code_files = scan_python_code.load_code_files(uploaded_file)
