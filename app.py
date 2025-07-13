@@ -7,7 +7,7 @@ from utils.vuln_patterns import VULN_KNOWLEDGE
 import time
 import io
 
-SAMPLE_FILENAME = "vulnerable_test_script.py"
+SAMPLE_FILENAME = "vulnerable_test_code.py"
 
 st.markdown("""
 <style>
